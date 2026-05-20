@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace EventBookingAPI.Models;
 
@@ -32,5 +33,6 @@ public class Event
     [Column("createdat")]
     public DateTime CreatedAt { get; set; }
 
+    [JsonIgnore]
     public List<Booking>? Bookings { get; set; }
 }

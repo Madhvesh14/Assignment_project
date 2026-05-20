@@ -23,6 +23,7 @@ namespace EventBookingAPI.Controllers
             _configuration = configuration;
         }
 
+        // REGISTER API
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDTO registerDto)
         {
@@ -34,6 +35,7 @@ namespace EventBookingAPI.Controllers
                 return BadRequest("User already exists");
             }
 
+            // Password Hashing
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
 
             var user = new User
@@ -52,6 +54,7 @@ namespace EventBookingAPI.Controllers
             return Ok("User Registered Successfully");
         }
 
+        // LOGIN API
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDTO loginDto)
         {
@@ -63,6 +66,7 @@ namespace EventBookingAPI.Controllers
                 return Unauthorized("Invalid EmailId");
             }
 
+            // Verify Password
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(
                 loginDto.Password,
                 user.PasswordHash
@@ -73,22 +77,27 @@ namespace EventBookingAPI.Controllers
                 return Unauthorized("Invalid Password");
             }
 
+            // JWT Claims
             var claims = new[]
             {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.FullName),
                 new Claim(ClaimTypes.Email, user.EmailId),
                 new Claim(ClaimTypes.Role, user.RoleId.ToString())
             };
 
+            // Secret Key
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)
             );
 
+            // Signing Credentials
             var credentials = new SigningCredentials(
                 key,
                 SecurityAlgorithms.HmacSha256
             );
 
+            // Create Token
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
@@ -97,6 +106,7 @@ namespace EventBookingAPI.Controllers
                 signingCredentials: credentials
             );
 
+            // Convert token to string
             var jwtToken = new JwtSecurityTokenHandler().WriteToken(token);
 
             return Ok(new AuthResponseDTO

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace EventBookingAPI.Models;
 
@@ -11,5 +12,6 @@ public class Role
     [Column("name")]
     public string Name { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public List<User>? Users { get; set; }
 }

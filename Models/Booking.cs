@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace EventBookingAPI.Models;
 
@@ -11,11 +12,13 @@ public class Booking
     [Column("userid")]
     public int UserId { get; set; }
 
+    [JsonIgnore]
     public User? User { get; set; }
 
     [Column("eventid")]
     public int EventId { get; set; }
 
+    [JsonIgnore]
     public Event? Event { get; set; }
 
     [Column("seatsbooked")]
