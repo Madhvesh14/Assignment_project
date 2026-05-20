@@ -2,11 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using EventBookingAPI.Data;
 using EventBookingAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace EventBookingAPI.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
+
 public class EventsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -17,6 +20,7 @@ public class EventsController : ControllerBase
     }
 
     // GET: api/events
+    
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Event>>> GetAllEvents()
     {
@@ -41,7 +45,9 @@ public class EventsController : ControllerBase
     }
 
     // POST: api/events
+    
     [HttpPost]
+    
     public async Task<ActionResult<Event>> CreateEvent(Event eventData)
     {
         _context.Events.Add(eventData);
@@ -55,7 +61,9 @@ public class EventsController : ControllerBase
     }
 
     // PUT: api/events/1
+    
     [HttpPut("{id}")]
+    
     public async Task<IActionResult> UpdateEvent(int id, Event updatedEvent)
     {
         if (id != updatedEvent.Id)
@@ -85,6 +93,7 @@ public class EventsController : ControllerBase
     }
 
     // DELETE: api/events/1
+    
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
     {
@@ -101,5 +110,15 @@ public class EventsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok("Event deleted successfully");
+
+    }  
+        //GET: api/events/protected
+        [Authorize]
+    [HttpGet("protected")]
+    public IActionResult ProtectedRoute()
+    {
+    return Ok("Access Granted To Protected API");
     }
+        
+    
 }
