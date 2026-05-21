@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using EventBookingAPI.Data;
 using EventBookingAPI.Models;
+using EventBookingAPI.DTOs;
 
 namespace EventBookingAPI.Controllers;
 
@@ -23,11 +24,9 @@ public class BookingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> BookEvent(Booking booking)
     {
-        // Find event
         var eventData = await _context.Events
             .FirstOrDefaultAsync(e => e.Id == booking.EventId);
 
-        // Check event exists
         if (eventData == null)
         {
             return NotFound("Event not found");
@@ -51,7 +50,6 @@ public class BookingsController : ControllerBase
         // Reduce available seats
         eventData.AvailableSeats -= booking.SeatsBooked;
 
-        // Save booking
         _context.Bookings.Add(booking);
 
         await _context.SaveChangesAsync();
@@ -63,32 +61,85 @@ public class BookingsController : ControllerBase
     [HttpGet("mybookings")]
     public async Task<IActionResult> GetMyBookings()
     {
-        // Get logged-in user id
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Get bookings for logged-in user
         var bookings = await _context.Bookings
             .Where(b => b.UserId == int.Parse(userId!))
+            .Include(b => b.Event)
             .ToListAsync();
 
         return Ok(bookings);
     }
 
-    // DELETE: api/bookings/{id}
+    // PUT: api/bookings/5
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateBooking(
+        int id,
+        UpdateBookingDTO dto)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        var booking = await _context.Bookings
+            .Include(b => b.Event)
+            .FirstOrDefaultAsync(
+                b => b.Id == id &&
+                     b.UserId == int.Parse(userId!)
+            );
+
+        if (booking == null)
+        {
+            return NotFound("Booking not found");
+        }
+
+        var eventData = booking.Event;
+
+        if (eventData == null)
+        {
+            return NotFound("Event not found");
+        }
+
+        int oldSeats = booking.SeatsBooked;
+        int newSeats = dto.SeatsBooked;
+
+        int difference = newSeats - oldSeats;
+
+        // Increase seats
+        if (difference > 0)
+        {
+            if (eventData.AvailableSeats < difference)
+            {
+                return BadRequest("Not enough seats available");
+            }
+
+            eventData.AvailableSeats -= difference;
+        }
+
+        // Decrease seats
+        else if (difference < 0)
+        {
+            eventData.AvailableSeats += Math.Abs(difference);
+        }
+
+        booking.SeatsBooked = newSeats;
+
+        await _context.SaveChangesAsync();
+
+        return Ok("Booking updated successfully");
+    }
+
+    // DELETE: api/bookings/5
     [HttpDelete("{id}")]
     public async Task<IActionResult> CancelBooking(int id)
     {
-        // Get logged-in user id
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Find booking
         var booking = await _context.Bookings
             .Include(b => b.Event)
-            .FirstOrDefaultAsync(b =>
-                b.Id == id &&
-                b.UserId == int.Parse(userId!));
+            .FirstOrDefaultAsync(
+                b => b.Id == id &&
+                     b.UserId == int.Parse(userId!)
+            );
 
-        // Check booking exists
         if (booking == null)
         {
             return NotFound("Booking not found");
@@ -100,7 +151,6 @@ public class BookingsController : ControllerBase
             booking.Event.AvailableSeats += booking.SeatsBooked;
         }
 
-        // Delete booking
         _context.Bookings.Remove(booking);
 
         await _context.SaveChangesAsync();
