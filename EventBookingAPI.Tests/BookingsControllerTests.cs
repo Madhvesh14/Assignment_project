@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using EventBookingAPI.Controllers;
 using EventBookingAPI.Data;
 using EventBookingAPI.Models;
+using EventBookingAPI.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
@@ -146,6 +147,94 @@ public class BookingsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
 
         Assert.NotNull(okResult.Value);
+    }
+
+    [Fact]
+    public async Task UpdateBooking_ReturnsOk_WhenUpdatedSuccessfully()
+    {
+        // Arrange
+        var context = GetDbContext();
+
+        context.Bookings.Add(new Booking
+        {
+            Id = 1,
+            UserId = 1,
+            EventId = 1,
+            SeatsBooked = 2,
+            BookingDate = DateTime.UtcNow,
+            Status = "Confirmed"
+        });
+
+        context.SaveChanges();
+
+        var controller = new BookingsController(context);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = GetFakeUser()
+            }
+        };
+
+        var dto = new UpdateBookingDTO
+        {
+            SeatsBooked = 5
+        };
+
+        // Act
+        var result = await controller.UpdateBooking(1, dto);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+
+        Assert.Equal("Booking updated successfully", okResult.Value);
+    }
+
+    [Fact]
+    public async Task UpdateBooking_ReturnsBadRequest_WhenSeatsUnavailable()
+    {
+        // Arrange
+        var context = GetDbContext();
+
+        context.Bookings.Add(new Booking
+        {
+            Id = 1,
+            UserId = 1,
+            EventId = 1,
+            SeatsBooked = 2,
+            BookingDate = DateTime.UtcNow,
+            Status = "Confirmed"
+        });
+
+        context.SaveChanges();
+
+        var controller = new BookingsController(context);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = GetFakeUser()
+            }
+        };
+
+        var dto = new UpdateBookingDTO
+        {
+            SeatsBooked = 500
+        };
+
+        // Act
+        var result = await controller.UpdateBooking(1, dto);
+
+        // Assert
+        var badRequest =
+            Assert.IsType<BadRequestObjectResult>(result);
+
+        Assert.Equal(
+            "Not enough seats available",
+            badRequest.Value
+        );
     }
 
     [Fact]
