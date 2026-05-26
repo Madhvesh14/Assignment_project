@@ -1,40 +1,46 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using EventBookingAPI.Data;
-using EventBookingAPI.Models;
+using EventBookingAPI.DTOs.Event;
+using EventBookingAPI.Services.Interfaces;
+
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EventBookingAPI.Controllers;
 
-[Authorize]
 [ApiController]
 [Route("api/[controller]")]
-
 public class EventsController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IEventService _eventService;
 
-    public EventsController(AppDbContext context)
+    public EventsController(IEventService eventService)
     {
-        _context = context;
+        _eventService = eventService;
     }
 
-    // GET: api/events
+
     
+    // GET ALL EVENTS
+    // GET: api/events
+
+    [Authorize]
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Event>>> GetAllEvents()
+    public async Task<IActionResult> GetAllEvents()
     {
-        var events = await _context.Events.ToListAsync();
+        var events = await _eventService.GetAllEventsAsync();
 
         return Ok(events);
     }
 
+
+    
+    // GET EVENT BY ID
     // GET: api/events/1
+
+    [Authorize]
     [HttpGet("{id}")]
-    public async Task<ActionResult<Event>> GetEventById(int id)
+    public async Task<IActionResult> GetEventById(int id)
     {
-        var eventData = await _context.Events
-            .FirstOrDefaultAsync(e => e.Id == id);
+        var eventData = await _eventService.GetEventByIdAsync(id);
 
         if (eventData == null)
         {
@@ -44,81 +50,68 @@ public class EventsController : ControllerBase
         return Ok(eventData);
     }
 
+
+    
+    // CREATE EVENT
     // POST: api/events
-    
+
+    [Authorize(Roles = "Admin")]
     [HttpPost]
-    
-    public async Task<ActionResult<Event>> CreateEvent(Event eventData)
+    public async Task<IActionResult> CreateEvent(CreateEventDto dto)
     {
-        _context.Events.Add(eventData);
+        var result = await _eventService.CreateEventAsync(dto);
 
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(
-            nameof(GetEventById),
-            new { id = eventData.Id },
-            eventData);
+        return Ok("event created successfully");
     }
 
+
+    
+    // UPDATE EVENT
     // PUT: api/events/1
-    
+
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
-    
-    public async Task<IActionResult> UpdateEvent(int id, Event updatedEvent)
+    public async Task<IActionResult> UpdateEvent(
+        int id,
+        UpdateEventDto dto)
     {
-        if (id != updatedEvent.Id)
+        var result = await _eventService.UpdateEventAsync(id, dto);
+
+        if (result == "Event not found")
         {
-            return BadRequest("Event ID mismatch");
+            return NotFound(result);
         }
 
-        var existingEvent = await _context.Events
-            .FirstOrDefaultAsync(e => e.Id == id);
-
-        if (existingEvent == null)
-        {
-            return NotFound("Event not found");
-        }
-
-        existingEvent.Title = updatedEvent.Title;
-        existingEvent.Description = updatedEvent.Description;
-        existingEvent.Location = updatedEvent.Location;
-        existingEvent.EventDate = updatedEvent.EventDate;
-        existingEvent.TotalSeats = updatedEvent.TotalSeats;
-        existingEvent.AvailableSeats = updatedEvent.AvailableSeats;
-        existingEvent.Price = updatedEvent.Price;
-
-        await _context.SaveChangesAsync();
-
-        return Ok("Event updated successfully");
+        return Ok(result);
     }
 
-    // DELETE: api/events/1
+
     
+    // DELETE EVENT
+    // DELETE: api/events/1
+
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
     {
-        var eventData = await _context.Events
-            .FirstOrDefaultAsync(e => e.Id == id);
+        var result = await _eventService.DeleteEventAsync(id);
 
-        if (eventData == null)
+        if (result == "Event not found")
         {
-            return NotFound("Event not found");
+            return NotFound(result);
         }
 
-        _context.Events.Remove(eventData);
+        return Ok(result);
+    }
 
-        await _context.SaveChangesAsync();
 
-        return Ok("Event deleted successfully");
+    
+    // PROTECTED TEST ROUTE
 
-    }  
-        //GET: api/events/protected
-        [Authorize]
+    [Authorize]
     [HttpGet("protected")]
     public IActionResult ProtectedRoute()
     {
-    return Ok("Access Granted To Protected API");
+        return Ok("Access Granted To Protected API");
     }
-        
-    
 }
