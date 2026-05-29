@@ -30,6 +30,22 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddControllers();
 
 
+// CORS
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "AllowReactApp",
+        policy =>
+        {
+            policy.WithOrigins(
+                    "http://localhost:3000")
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
+
 // JWT AUTHENTICATION
 
 builder.Services.AddAuthentication(
@@ -84,34 +100,48 @@ builder.Services.AddAuthorization();
 
 // REPOSITORIES
 
-builder.Services.AddScoped<IAuthRepository,
+builder.Services.AddScoped<
+    IAuthRepository,
     AuthRepository>();
 
-builder.Services.AddScoped<IEventRepository,
+builder.Services.AddScoped<
+    IEventRepository,
     EventRepository>();
 
-builder.Services.AddScoped<IBookingRepository,
+builder.Services.AddScoped<
+    IBookingRepository,
     BookingRepository>();
 
 
 // SERVICES
 
-builder.Services.AddScoped<IAuthService,
+builder.Services.AddScoped<
+    IAuthService,
     AuthService>();
 
-builder.Services.AddScoped<IEventService,
+builder.Services.AddScoped<
+    IEventService,
     EventService>();
 
-builder.Services.AddScoped<IBookingService,
+builder.Services.AddScoped<
+    IBookingService,
     BookingService>();
 
 
 var app = builder.Build();
 
 
-// MIDDLEWARES
+// CORS
+
+app.UseCors("AllowReactApp");
+
+
+// AUTHENTICATION
 
 app.UseAuthentication();
+
+
+// AUTHORIZATION
 
 app.UseAuthorization();
 
