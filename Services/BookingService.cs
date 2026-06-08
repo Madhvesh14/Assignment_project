@@ -2,6 +2,7 @@ using EventBookingAPI.DTOs.Booking;
 using EventBookingAPI.Models;
 using EventBookingAPI.Repositories.Interfaces;
 using EventBookingAPI.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace EventBookingAPI.Services;
 
@@ -11,204 +12,214 @@ public class BookingService : IBookingService
 
     private readonly IEventRepository _eventRepository;
 
-    public BookingService(
-        IBookingRepository bookingRepository,
-        IEventRepository eventRepository)
+    private readonly ILogger<BookingService> _logger;
+
+    public BookingService(IBookingRepository bookingRepository, IEventRepository eventRepository, ILogger<BookingService> logger)
     {
         _bookingRepository = bookingRepository;
 
         _eventRepository = eventRepository;
+
+        _logger = logger;
     }
 
 
     
     // CREATE BOOKING
 
-    public async Task<string> BookEventAsync(
-        CreateBookingDto dto,
-        int userId)
+    public async Task<string> BookEventAsync(CreateBookingDto dto, int userId)
     {
-        var eventData =
-            await _eventRepository.GetEventByIdAsync(dto.EventId);
-
-        if (eventData == null)
+        try
         {
-            return "Event not found";
+            _logger.LogInformation("User {UserId} is booking Event {EventId}", userId, dto.EventId);
+
+            var eventData = await _eventRepository.GetEventByIdAsync(dto.EventId);
+
+            if (eventData == null)
+            {
+                _logger.LogWarning("Event {EventId} not found", dto.EventId);
+
+                return "Event not found";
+            }
+
+            if (eventData.AvailableSeats < dto.SeatsBooked)
+            {
+                _logger.LogWarning("Not enough seats available for Event {EventId}", dto.EventId);
+
+                return "Not enough seats available";
+            }
+
+            var booking = new Booking
+            {
+                UserId = userId,
+                EventId = dto.EventId,
+                SeatsBooked = dto.SeatsBooked,
+                BookingDate = DateTime.UtcNow,
+                Status = "Confirmed"
+            };
+
+            eventData.AvailableSeats -= dto.SeatsBooked;
+
+            // FIX UTC ISSUE
+
+            eventData.EventDate =DateTime.SpecifyKind(eventData.EventDate, DateTimeKind.Utc);
+
+            await _bookingRepository.CreateBookingAsync(booking);
+
+            await _eventRepository.UpdateEventEntityAsync(eventData);
+
+            _logger.LogInformation("Booking created successfully for User {UserId}",userId);
+
+            return "Booking successful";
         }
-
-        if (eventData.AvailableSeats < dto.SeatsBooked)
+        catch (Exception ex)
         {
-            return "Not enough seats available";
+        _logger.LogError(ex,"Error while booking event for User {UserId}", userId);
+
+            throw;
         }
-
-        var booking = new Booking
-        {
-            UserId = userId,
-
-            EventId = dto.EventId,
-
-            SeatsBooked = dto.SeatsBooked,
-
-            BookingDate = DateTime.UtcNow,
-
-            Status = "Confirmed"
-        };
-
-        eventData.AvailableSeats -= dto.SeatsBooked;
-
-        
-        // FIX UTC ISSUE
-
-        eventData.EventDate =
-            DateTime.SpecifyKind(
-                eventData.EventDate,
-                DateTimeKind.Utc);
-
-        await _bookingRepository
-            .CreateBookingAsync(booking);
-
-        await _eventRepository
-            .UpdateEventEntityAsync(eventData);
-
-        return "Booking successful";
     }
-
-
-    
     // GET MY BOOKINGS
 
-    public async Task<IEnumerable<BookingResponseDto>>
-        GetMyBookingsAsync(int userId)
+    public async Task<IEnumerable<BookingResponseDto>>GetMyBookingsAsync(int userId)
     {
-        var bookings =
-            await _bookingRepository
-                .GetBookingsByUserIdAsync(userId);
-
-        return bookings.Select(b => new BookingResponseDto
+        try
         {
-            Id = b.Id,
+            _logger.LogInformation("Fetching bookings for User {UserId}", userId);
 
-            EventId = b.EventId,
+            var bookings = await _bookingRepository.GetBookingsByUserIdAsync(userId);
 
-            EventTitle = b.Event!.Title,
+            return bookings.Select(b => new BookingResponseDto
+            {
+                Id = b.Id,
+                EventId = b.EventId,
+                EventTitle = b.Event!.Title,
+                SeatsBooked = b.SeatsBooked,
+                BookingDate = b.BookingDate,
+                Status = b.Status
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while fetching bookings for User {UserId}",userId);
 
-            SeatsBooked = b.SeatsBooked,
-
-            BookingDate = b.BookingDate,
-
-            Status = b.Status
-        });
+            throw;
+        }
     }
 
 
     
     // UPDATE BOOKING
 
-    public async Task<string> UpdateBookingAsync(
-        int bookingId,
-        UpdateBookingDto dto,
-        int userId)
+   public async Task<string> UpdateBookingAsync(int bookingId, UpdateBookingDto dto, int userId)
     {
-        var booking =
-            await _bookingRepository
-                .GetBookingByIdAsync(bookingId);
-
-        if (booking == null || booking.UserId != userId)
+        try
         {
-            return "Booking not found";
+            _logger.LogInformation("Updating Booking {BookingId}", bookingId);
+
+            var booking =await _bookingRepository.GetBookingByIdAsync(bookingId);
+
+            if (booking == null || booking.UserId != userId)
+            {
+                _logger.LogWarning("Booking {BookingId} not found", bookingId);
+
+                return "Booking not found";
+            }   
+
+            var eventData = await _eventRepository.GetEventByIdAsync(booking.EventId);
+
+            if (eventData == null)
+            {
+                _logger.LogWarning("Event not found for Booking {BookingId}",bookingId);
+
+                return "Event not found";
+            }
+
+            // RETURN OLD SEATS
+
+            eventData.AvailableSeats += booking.SeatsBooked;
+
+             // CHECK NEW SEAT AVAILABILITY
+
+            if (eventData.AvailableSeats < dto.SeatsBooked)
+            {
+                _logger.LogWarning("Seat update failed for Booking {BookingId}",bookingId);
+
+                return "Not enough seats available";
+            }
+
+             // UPDATE BOOKING
+
+            booking.SeatsBooked = dto.SeatsBooked;
+
+            booking.Status = dto.Status;
+
+            //REDUCE NEW SEATS
+
+            eventData.AvailableSeats -= dto.SeatsBooked;
+
+            // FIX UTC ISSUE
+
+            eventData.EventDate = DateTime.SpecifyKind(eventData.EventDate, DateTimeKind.Utc);
+
+            await _bookingRepository.UpdateBookingAsync(booking);
+
+            await _eventRepository.UpdateEventEntityAsync(eventData);
+
+            _logger.LogInformation("Booking {BookingId} updated successfully", bookingId);
+
+            return "Booking updated successfully";
         }
-
-        var eventData =
-            await _eventRepository
-                .GetEventByIdAsync(booking.EventId);
-
-        if (eventData == null)
+        catch (Exception ex)
         {
-            return "Event not found";
+            _logger.LogError(ex, "Error while updating Booking {BookingId}", bookingId);
+
+            throw;
         }
-
-        
-        // RETURN OLD SEATS
-
-        eventData.AvailableSeats += booking.SeatsBooked;
-
-        
-        // CHECK NEW SEAT AVAILABILITY
-
-        if (eventData.AvailableSeats < dto.SeatsBooked)
-        {
-            return "Not enough seats available";
-        }
-
-        
-        // UPDATE BOOKING
-
-        booking.SeatsBooked = dto.SeatsBooked;
-
-        booking.Status = dto.Status;
-
-        
-        // REDUCE NEW SEATS
-
-        eventData.AvailableSeats -= dto.SeatsBooked;
-
-        
-        // FIX UTC ISSUE
-
-        eventData.EventDate =
-            DateTime.SpecifyKind(
-                eventData.EventDate,
-                DateTimeKind.Utc);
-
-        await _bookingRepository
-            .UpdateBookingAsync(booking);
-
-        await _eventRepository
-            .UpdateEventEntityAsync(eventData);
-
-        return "Booking updated successfully";
     }
 
 
     
     // CANCEL BOOKING
 
-    public async Task<string> CancelBookingAsync(
-        int bookingId,
-        int userId)
+    public async Task<string> CancelBookingAsync(int bookingId, int userId)
     {
-        var booking =
-            await _bookingRepository
-                .GetBookingByIdAsync(bookingId);
-
-        if (booking == null || booking.UserId != userId)
+        try
         {
-            return "Booking not found";
+            _logger.LogInformation("Cancelling Booking {BookingId}", bookingId);
+
+            var booking = await _bookingRepository.GetBookingByIdAsync(bookingId);
+
+            if (booking == null || booking.UserId != userId)
+            {
+                _logger.LogWarning("Booking {BookingId} not found", bookingId);
+
+                return "Booking not found";
+            }
+
+            var eventData = await _eventRepository.GetEventByIdAsync(booking.EventId);
+
+            if (eventData != null)
+            {
+                eventData.AvailableSeats += booking.SeatsBooked;
+
+                //FIX UTC ISSUE
+
+                eventData.EventDate = DateTime.SpecifyKind(eventData.EventDate, DateTimeKind.Utc);
+
+                await _eventRepository.UpdateEventEntityAsync(eventData);
+            }
+
+            await _bookingRepository.DeleteBookingAsync(booking);
+
+            _logger.LogInformation("Booking {BookingId} cancelled successfully", bookingId);
+
+            return "Booking cancelled successfully";
         }
-
-        var eventData =
-            await _eventRepository
-                .GetEventByIdAsync(booking.EventId);
-
-        if (eventData != null)
+        catch (Exception ex)
         {
-            eventData.AvailableSeats += booking.SeatsBooked;
-
-            
-            // FIX UTC ISSUE
-
-            eventData.EventDate =
-                DateTime.SpecifyKind(
-                    eventData.EventDate,
-                    DateTimeKind.Utc);
-
-            await _eventRepository
-                .UpdateEventEntityAsync(eventData);
+            _logger.LogError(ex, "Error while cancelling Booking {BookingId}", bookingId);
+            throw;
         }
-
-        await _bookingRepository
-            .DeleteBookingAsync(booking);
-
-        return "Booking cancelled successfully";
     }
 }
