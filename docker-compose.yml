@@ -1,0 +1,51 @@
+
+services:
+
+  postgres:
+    image: postgres
+    container_name: eventbooking-db
+
+    ports:
+      - "5440:5432"
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: eventbookingdb
+      PGDATA: /var/lib/postgresql/18/docker
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  backend:
+    build:
+      context: ./EventBookingAPI
+
+    container_name: eventbooking-api
+
+    ports:
+      - "5226:8080"
+
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=eventbookingdb;Username=postgres;Password=postgres123"
+
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./event-booking
+
+    container_name: eventbooking-react
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    external: true
+    name: f03224372591008ec600d4e5f8a65ed2f156171eff3a0bd5246d2499136f67e6
+
