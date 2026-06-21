@@ -22,9 +22,7 @@ public class EventService : IEventService
 
     // GET ALL EVENTS
 
-    public async Task<IEnumerable<EventDto>>
-    
-        GetAllEventsAsync()
+    public async Task<IEnumerable<EventDto>>GetAllEventsAsync()
         {
             try
             {
@@ -95,9 +93,40 @@ public class EventService : IEventService
     }
 
 
+    // SEARCH EVENT BY TITLE
+    public async Task<IEnumerable<EventDto>>SearchEventAsync(string title)
+    {
+        try
+        {
+            _logger.LogInformation("Searching events using title {Title}.",title);
+            var events = await _eventRepository.SearchEventAsync(title);
+
+            return events.Select(e => new EventDto
+            {
+                Id = e.Id,
+                Title = e.Title,
+                Description = e.Description,
+                Location = e.Location,
+                EventDate = e.EventDate,
+                TotalSeats = e.TotalSeats,
+                AvailableSeats = e.AvailableSeats,
+                Price = e.Price
+            });
+        }
+
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,"Error while searching events.");
+
+            throw;;
+        }
+    }
+    
+
+
     // CREATE EVENT
 
-    public async Task<EventDto> CreateEventAsync(CreateEventDto dto)
+    public async Task<EventDto>CreateEventAsync(CreateEventDto dto)
     {
         try
         {
@@ -195,8 +224,7 @@ public class EventService : IEventService
 
     // DELETE EVENT
 
-    public async Task<string>
-        DeleteEventAsync(int id)
+    public async Task<string>DeleteEventAsync(int id)
     {
         try
         {

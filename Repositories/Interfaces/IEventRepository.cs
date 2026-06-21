@@ -8,6 +8,8 @@ public interface IEventRepository
 
     Task<Event?> GetEventByIdAsync(int id);
 
+    Task<IEnumerable<Event>> SearchEventAsync(string title);
+
     Task CreateEventAsync(Event eventData);
 
     Task UpdateEventEntityAsync(Event eventData);

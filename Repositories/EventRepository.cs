@@ -28,8 +28,16 @@ public class EventRepository : IEventRepository
 
     public async Task<Event?> GetEventByIdAsync(int id)
     {
-        return await _context.Events
-            .FirstOrDefaultAsync(e => e.Id == id);
+        return await _context.Events.FirstOrDefaultAsync(e => e.Id == id);
+    }
+
+
+    //GET EVENT BY TITLE
+
+    public async Task<IEnumerable<Event>> SearchEventAsync(string title)
+    {
+        return await _context.Events.Where(e =>
+        EF.Functions.ILike(e.Title,$"%{title}%")).ToListAsync();
     }
 
     
