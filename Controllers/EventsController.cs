@@ -1,3 +1,4 @@
+using System.Net;
 using EventBookingAPI.DTOs.Event;
 using EventBookingAPI.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -45,6 +46,34 @@ public class EventsController : ControllerBase
             return StatusCode(500, "An internal server error occurred.");
         }
     }
+
+
+    //GET EVENT BY TITLE 
+    //GET: api/events/search?title={Title}
+    [Authorize]
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchEvents( [FromQuery] string title)
+    {
+        try
+        {
+            _logger.LogInformation("Searching eventd title {Title}.",title);
+
+            var events = await _eventService.SearchEventAsync(title);
+            
+            return Ok(events);
+
+        }
+
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while searching events.");
+
+            return StatusCode(500, "An internal server error occured.");
+        }
+    }
+    
+
+
 
     // GET EVENT BY ID
     // GET: api/events/{id}
