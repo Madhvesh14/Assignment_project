@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using EventBookingAPI.Models.Response;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +29,66 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(
 // CONTROLLERS
 
 builder.Services.AddControllers();
+
+
+//VALIDATION OF ERROES
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        foreach (var item in context.ModelState)
+            {
+                // Ignore ASP.NET's artificial "dto" entry
+                if (item.Key == "dto")
+                    continue;
+
+             if (item.Value.Errors.Count > 0)
+                {
+                     string field = item.Key.Replace("$.", "");
+
+                        var errorMessages = item.Value.Errors
+                         .Select(error =>
+                         {
+                          // JSON conversion errors
+                         if (error.ErrorMessage.Contains("could not be converted"))
+                        {
+                            return field switch
+                            {
+                                 "totalSeats" => "Total Seats must be a valid number.",
+                                 "availableSeats" => "Available Seats must be a valid number.",
+                                 "price" => "Price must be a valid number.",
+                                 "eventDate" => "Event Date is not valid.",
+                                _=> $"Invalid value for {field}."
+                            };
+                        }
+
+                            // Required field errors
+                            if (error.ErrorMessage.Contains("required"))
+                            {
+                                return $"{field} is required.";
+                            }
+
+                                return error.ErrorMessage;
+                         })
+                            .ToArray();
+
+                            errors[field] = errorMessages;
+                }
+            }
+
+        var response = new ApiResponse
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Message = "Validation Failed.",
+            Errors = errors
+        };
+
+        return new BadRequestObjectResult(response);
+    };
+});
 
 
 // CORS
